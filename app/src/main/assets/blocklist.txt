@@ -1,0 +1,44 @@
+# Bundled default blocklist (AdAway/hosts format).
+# A small curated starter set so the app blocks something out of the box (offline).
+# Full lists (StevenBlack, AdGuard, EasyList) are fetched at runtime and merged into the same trie.
+
+0.0.0.0 ad.doubleclick.net
+0.0.0.0 doubleclick.net
+0.0.0.0 pagead2.googlesyndication.com
+0.0.0.0 googlesyndication.com
+0.0.0.0 adservice.google.com
+0.0.0.0 googleads.g.doubleclick.net
+0.0.0.0 pubads.g.doubleclick.net
+0.0.0.0 securepubads.g.doubleclick.net
+0.0.0.0 static.doubleclick.net
+0.0.0.0 ad.doubleclick.com
+0.0.0.0 ads.youtube.com
+0.0.0.0 admanager.google.com
+0.0.0.0 tpc.googlesyndication.com
+0.0.0.0 partner.googleadservices.com
+0.0.0.0 googleadservices.com
+0.0.0.0 adnxs.com
+0.0.0.0 *.adnxs.com
+0.0.0.0 rubiconproject.com
+0.0.0.0 pubmatic.com
+0.0.0.0 criteo.com
+0.0.0.0 *.criteo.com
+0.0.0.0 scorecardresearch.com
+0.0.0.0 moatads.com
+0.0.0.0 adsystem.com
+0.0.0.0 adservice.adsvr.org
+0.0.0.0 advertising.com
+0.0.0.0 adtech.com
+0.0.0.0 *.adtech.com
+0.0.0.0 taboola.com
+0.0.0.0 outbrain.com
+0.0.0.0 *.outbrain.com
+0.0.0.0 adsrvr.org
+0.0.0.0 casalemedia.com
+0.0.0.0 *.casalemedia.com
+0.0.0.0 openx.net
+0.0.0.0 *.openx.net
+0.0.0.0 adform.net
+0.0.0.0 *.adform.net
+0.0.0.0 criteo.net
+0.0.0.0 *.criteo.net
