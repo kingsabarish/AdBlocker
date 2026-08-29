@@ -85,3 +85,41 @@ notes (e.g. the DNS/VPN internals) live in code and feature PRs, not here.
 - **Unit tests (JUnit):** add them for pure logic as the engine grows — e.g. DNS/IP
   packet parsing, blocklist/domain matching (Trie/HashSet), and cache behavior. UI is
   verified manually.
+
+## On-device deployment & manual testing (OnePlus / ColorOS)
+
+The dev phone is a OnePlus (ColorOS, Android 14+). SDK-only workflow:
+
+- JDK via `JAVA_HOME`, Android SDK via `ANDROID_HOME`; `platform-tools` on `PATH`.
+- Build + install: `./gradlew installDebug` (or `adb install -r app/build/outputs/apk/debug/app-debug.apk`).
+- **Side-loaded APKs trigger the OEM installer.** After `adb install -r` the flow is:
+  1. Installer screen `com.oplus.stdsp` → tap **Continue installation**
+     (`com.oplus.stdsp:id/btn_third`, bounds `[82,1858][998,1970]`, tap `540,1914`).
+  2. Next screen → tap **Open** (`com.oplus.stdsp:id/btn_open`, bounds `[889,327][1039,398]`,
+     tap `964,362`). If you launched the app another way, skip this.
+- In-app: tap **Start** (`[433,1292][648,1414]`, tap `540,1353`). First run shows the system
+  VPN consent dialog `com.oplus.wirelesssettings` → tap **Allow**
+  (`com.oplus.wirelesssettings:id/button1`, bounds `[541,2127][999,2276]`, tap `770,2201`).
+- **Verify the tunnel is up:** `adb shell ip addr show tun0` should list `10.10.10.1/32`.
+- **Verify blocking:** from the device, `ping -c1 <blocklisted-domain>` (e.g.
+  `ad.doubleclick.net`) resolves to `127.0.0.1`/loopback (the app answers `0.0.0.0`), while a
+  legit domain (`example.com`) resolves to a real IP and pings. Watch the blocked counter in
+  the UI and `adb logcat -d | grep AdBlock/` (`BLOCK` / `FORWARD ok` lines).
+- **`getent`/`nslookup` are NOT on the device** — `ping -c1` is the quickest DNS probe.
+- If the UI shows the app backgrounded to the launcher right after Start, the foreground
+  service crashed: check `adb logcat -b crash` and the `AdBlock/` tags.
+
+### Foreground service / `targetSdk` note (important)
+
+- `VpnService` here calls a **plain `startForeground()`**. On API 34+ the system normally
+  requires `startForeground(id, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_VPN)` **and**
+  `android:foregroundServiceType="vpn"` in the manifest. This toolchain (AGP 9.3.0 → build-tools
+  36/37) **rejects `"vpn"` as a `foregroundServiceType` flag** (`'vpn' is incompatible with
+  attribute foregroundServiceType` — the flag is missing from the framework enum in those
+  build-tools). Until build-tools ship the flag, the app is pinned to **`targetSdk = 33`** so a
+  plain `startForeground()` stays valid. Revisit this when build-tools support `vpn` (or drop
+  AGP's minimum build-tools) — then declare the type properly and raise `targetSdk`.
+- The DNS forwarder `DatagramSocket` **must** be `VpnService.protect()`ed and given a
+  **`soTimeout`** (3s). Without the timeout a single unanswered upstream reply stalls the
+  single reader thread forever and every later query fails (`unknown host`).
+
