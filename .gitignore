@@ -1,0 +1,27 @@
+# Built files
+*.class
+*.apk
+*.aar
+*.ap_
+*.aab
+
+# Local configuration (machine-specific — never commit)
+local.properties
+app/local.properties
+gradle.properties.local
+
+# Gradle / build output
+.gradle/
+build/
+app/build/
+captures/
+
+# IDE
+*.iml
+.idea/
+.DS_Store
+.externalNativeBuild/
+.cxx/
+
+# Logs
+*.log
