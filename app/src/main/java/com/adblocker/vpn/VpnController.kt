@@ -13,6 +13,35 @@ object VpnController {
     }
 
     fun stop(context: Context) {
-        context.stopService(Intent(context, AdBlockVpnService::class.java))
+        // Send STOP action — the service handles cleanup in onStartCommand.
+        // Do NOT call stopService() as it can race with foreground service lifecycle.
+        try {
+            context.startService(
+                Intent(context, AdBlockVpnService::class.java)
+                    .apply { action = AdBlockVpnService.ACTION_STOP },
+            )
+        } catch (_: Exception) {
+            // Service may already be stopped — that's fine
+        }
+    }
+
+    /** Full reload: closes TUN, rebuilds tunnel, reloads blocklists. For bypass app changes. */
+    fun reload(context: Context) {
+        try {
+            context.startService(
+                Intent(context, AdBlockVpnService::class.java)
+                    .apply { action = AdBlockVpnService.ACTION_RELOAD },
+            )
+        } catch (_: Exception) { }
+    }
+
+    /** Lightweight reload: only reloads blocklists without disrupting the VPN tunnel. */
+    fun reloadBlocklists(context: Context) {
+        try {
+            context.startService(
+                Intent(context, AdBlockVpnService::class.java)
+                    .apply { action = AdBlockVpnService.ACTION_RELOAD_BLOCKLISTS },
+            )
+        } catch (_: Exception) { }
     }
 }

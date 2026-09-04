@@ -2,12 +2,6 @@ package com.adblocker.vpn
 
 /**
  * Parses a DNS query (RFC 1035) from a UDP payload.
- *
- * @param id transaction id (echoed back in the response)
- * @param domain the QNAME (already lower-cased by the matcher on use)
- * @param type QTYPE (1 = A, 28 = AAAA, ...)
- * @param questionBytes the raw question section (name + type + class) to echo into the response
- * @param raw the original query payload bytes, forwarded unchanged to the upstream resolver
  */
 data class DnsQuery(
     val id: Int,
@@ -31,7 +25,9 @@ object DnsParser {
         while (pos < payload.size) {
             val len = payload[pos].toInt() and 0xFF
             if (len == 0) { pos += 1; break }
-            if (len >= 0xC0) { pos += 2; break } // compression pointer (unexpected in queries)
+            if (len >= 0xC0) { pos += 2; break } // compression pointer
+            // Bounds check: ensure we can read the full label
+            if (pos + 1 + len > payload.size) return null
             if (sb.isNotEmpty()) sb.append('.')
             sb.append(String(payload, pos + 1, len, Charsets.US_ASCII))
             pos += len + 1

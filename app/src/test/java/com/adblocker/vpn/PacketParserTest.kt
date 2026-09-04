@@ -1,5 +1,8 @@
 package com.adblocker.vpn
 
+import com.adblocker.data.CustomBlocklist
+import com.adblocker.data.decodeEntry
+import com.adblocker.data.encodeEntry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -77,5 +80,58 @@ class PacketBuilderTest {
         assertEquals(1, ((resp[6].toInt() and 0xFF) shl 8) or (resp[7].toInt() and 0xFF)) // ANCOUNT
         // Answer A record: 0.0.0.0
         assertTrue(resp.size >= 12 + query.questionBytes.size + 16)
+    }
+
+    @Test
+    fun aaaaQueryReturnsEmptyNoError() {
+        // This is the fix for "internet not working when the blocker is on": the DNS-only
+        // tunnel blackholes all IPv6 (`::/0 unreachable`), so AAAA queries must answer empty
+        // (NOERROR, 0 answers) to make apps fall back to IPv4 instead of dead IPv6.
+        val query = DnsParser.parse(buildDnsQuery("example.com", 28))!!
+        assertEquals(28, query.type)
+        val resp = PacketBuilder.buildEmptyResponse(query)
+        assertEquals(12 + query.questionBytes.size, resp.size)
+        assertEquals(0x8180, ((resp[2].toInt() and 0xFF) shl 8) or (resp[3].toInt() and 0xFF))
+        assertEquals(0, ((resp[6].toInt() and 0xFF) shl 8) or (resp[7].toInt() and 0xFF)) // ANCOUNT = 0
+        // question echoed back verbatim so the client matches the response
+        assertTrue(resp.copyOfRange(12, 12 + query.questionBytes.size).contentEquals(query.questionBytes))
+    }
+
+    @Test
+    fun emptyResponseWrapsIntoValidUdp() {
+        val query = DnsParser.parse(buildDnsQuery("example.com", 28))!!
+        val resp = PacketBuilder.buildEmptyResponse(query)
+        val pkt = PacketBuilder.buildUdp(
+            Inet4Address.getByName("10.10.10.2") as Inet4Address,
+            Inet4Address.getByName("10.10.10.1") as Inet4Address,
+            53,
+            12345,
+            resp,
+        )
+        assertEquals(4, pkt[0].toInt() ushr 4)
+        assertEquals(17, pkt[9].toInt() and 0xFF)
+        assertEquals(20 + 8 + resp.size, pkt.size)
+    }
+
+    @Test
+    fun customBlocklistEncodeDecodeRoundTrips() {
+        // The separator must survive URLs that contain characters like '#', '=' and ':'.
+        val lists = listOf(
+            CustomBlocklist("https://example.com/ads.txt#anchor", enabled = true),
+            CustomBlocklist("https://block.demo/list?a=1&b=2", enabled = false),
+            CustomBlocklist("http://1.2.3.4:8080/hosts", enabled = true),
+        )
+        for (b in lists) {
+            val enc = encodeEntry(b)
+            val dec = decodeEntry(enc)
+            assertEquals(b.url, dec.url)
+            assertEquals(b.enabled, dec.enabled)
+        }
+    }
+
+    @Test
+    fun customBlocklistDisabledFlagDecodes() {
+        assertEquals(CustomBlocklist("x", false), decodeEntry("0\u0001x"))
+        assertEquals(CustomBlocklist("y", true), decodeEntry("1\u0001y"))
     }
 }

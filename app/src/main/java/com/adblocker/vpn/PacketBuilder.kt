@@ -72,6 +72,25 @@ object PacketBuilder {
         return out
     }
 
+    /**
+     * Build a NOERROR response with no answer records. Used for AAAA queries so apps fall
+     * back to IPv4: the VPN routes only the fake DNS server and blackholes all IPv6 data
+     * (`::/0 unreachable`), so handing out real IPv6 addresses would break connectivity.
+     */
+    fun buildEmptyResponse(query: DnsQuery): ByteArray {
+        val q = query.questionBytes
+        val out = ByteArray(12 + q.size)
+        var p = 0
+        writeShort(out, p, query.id); p += 2
+        writeShort(out, p, 0x8180); p += 2 // QR=1, AA=1, RD=1, RA=1
+        writeShort(out, p, 1); p += 2 // QDCOUNT
+        writeShort(out, p, 0); p += 2 // ANCOUNT = 0
+        writeShort(out, p, 0); p += 2 // NSCOUNT
+        writeShort(out, p, 0); p += 2 // ARCOUNT
+        System.arraycopy(q, 0, out, p, q.size); p += q.size
+        return out
+    }
+
     private fun writeShort(b: ByteArray, off: Int, v: Int) {
         b[off] = (v ushr 8).toByte()
         b[off + 1] = (v and 0xFF).toByte()
