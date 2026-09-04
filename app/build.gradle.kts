@@ -12,7 +12,7 @@ android {
     defaultConfig {
         applicationId = "com.adblocker"
         minSdk = 26
-        targetSdk = 33
+        targetSdk = 34
         versionCode = 1
         versionName = "0.1.0"
 
@@ -35,6 +35,12 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    // Local JVM unit tests (filter/DiskMatcher) touch android.* stubs (e.g. Log);
+    // let those calls no-op instead of throwing so the pure logic tests can run on the JVM.
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
+
     buildFeatures {
         compose = true
     }
@@ -53,6 +59,7 @@ dependencies {
     // Compose (BOM keeps all Compose artifacts on one version)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.bundles.compose)
+    implementation(libs.androidx.compose.material.icons.extended)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     // Settings storage

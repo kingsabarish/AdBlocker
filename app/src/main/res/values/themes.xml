@@ -3,4 +3,13 @@
     <style name="Theme.AdBlocker" parent="android:Theme.Material.NoActionBar">
         <item name="android:colorPrimary">?android:attr/colorAccent</item>
     </style>
+
+    <!-- Fully transparent theme for VpnToggleActivity (no visible window). -->
+    <style name="Theme.AdBlocker.Transparent">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
 </resources>
