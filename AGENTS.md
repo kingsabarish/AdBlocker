@@ -7,25 +7,22 @@ notes (e.g. the DNS/VPN internals) live in code and feature PRs, not here.
 
 - **Language:** native **Kotlin + Jetpack Compose** (Material 3).
 - **Layout:** organized **package-by-feature** under
-  `app/src/main/java/com/adblocker/`. Keep layers as folders
-  (`data/`, `domain/`, `ui/`, `vpn/` / `filter/`, `di/`) and hold empty ones with
-  `.gitkeep` until filled.
-- **On-device architecture** (no backend at runtime): the UI depends only on
-  **repository interfaces** in `domain/repository/`; implementations in
-  `data/repository/` adapt storage ↔ domain models. `domain/**` has **no** Android /
-  framework imports; `ui/**` never imports `data/**` directly. Errors cross the
-  boundary as a **sealed `AppResult`** (or similar), not raw exceptions.
-- **Persistence:** `DataStore` for settings; `Room` if a local DB is needed
-  (schema exported via `exportSchema = true`).
-- **DI:** `Hilt` for non-trivial graphs; a minimal manual container is acceptable for
-  a small single-page app.
+  `app/src/main/java/com/adblocker/`. Layers: `data/`, `ui/`, `vpn/`, `filter/`,
+  `receiver/`.
+- **Persistence:** `SharedPreferences` (via `VpnState`) for VPN state, file-based
+  marker (`vpn_active`) for cross-process tile state. `DataStore` not yet used.
+- **DI:** none currently; manual wiring via `AdBlockerApp`.
 
 ## Stack & tooling
 
 - Versions are centralized in `gradle/libs.versions.toml`. Current pins:
   - AGP **9.3.0**, Gradle **9.5.0**, Kotlin **2.4.10**, KSP **2.3.11**
     (KSP uses *decoupled* versioning — not `<kotlin>-<ksp>`).
-  - compileSdk / targetSdk **37**, minSdk **26**, JVM target **17**.
+  - compileSdk **37**, targetSdk **34** (Android 14), minSdk **26**, JVM target **17**.
+- **targetSdk 34 requirements:**
+  - `android:foregroundServiceType="specialUse"` on the VPN service.
+  - `FOREGROUND_SERVICE_SPECIAL_USE` permission in the manifest.
+  - `ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE` flag in `startForeground()`.
 - **AGP 9 provides built-in Kotlin:** do **not** apply the
   `org.jetbrains.kotlin.android` plugin (it errors). Apply the compose, serialization,
   and KSP plugins on top; Kotlin compiler options go in the `kotlin { compilerOptions { }
@@ -36,6 +33,9 @@ notes (e.g. the DNS/VPN internals) live in code and feature PRs, not here.
 - **Dynamic color** (Material You) only on API 31+ — guard with
   `Build.VERSION.SDK_INT >= Build.VERSION_CODES.S`, else fall back to the static
   scheme (crashes on 26–30 without the guard).
+- **`android:largeHeap="true"`** is set, but OnePlus/ColorOS caps JVM heap at
+  256 MB regardless. The blocklist engine uses `DiskMatcher` (memory-mapped files)
+  to avoid heap pressure.
 
 ## Android environment
 
@@ -53,6 +53,34 @@ notes (e.g. the DNS/VPN internals) live in code and feature PRs, not here.
 - Gradle runs via the wrapper (`./gradlew`). The wrapper files (`gradlew`,
   `gradlew.bat`, `gradle/wrapper/gradle-wrapper.jar` + `.properties`) are **committed**
   — clone and run, no `gradle wrapper` step.
+
+## On-device testing
+
+- **Device:** OnePlus (CPH2767), Android 14, serial `3C166500F2N00000`.
+- **Install flow:** push APK → `pm install -r -t` via shell. Play Protect may block —
+  tap "Continue installation" on device.
+- **VPN consent:** first start requires Allow tap. Coordinate: `770,2201` (may shift
+  with screen density). Re-grant after force-stop.
+- **Tap coordinates shift** with UI content. Always `uiautomator dump` + regex for
+  `text="OFF|ON"` to find the power button bounds before tapping.
+- **QS tile tap:** expand shade (`cmd statusbar expand-settings`), dump UI, find the
+  AdBlock tile's clickable parent bounds, tap center.
+- **DNS verification:**
+  - VPN ON: `ads.google.com` → `127.0.0.1` or `0.0.0.0` (blocked).
+  - VPN OFF: `ads.google.com` → real IP (e.g. `142.251.x.x`).
+- **Process check:** `ps -A | grep adblocker` — should show one process.
+- **Crash check:** `logcat -d -s AndroidRuntime:E | tail -20`.
+
+## Quick Settings tile
+
+- **Approach:** transparent `VpnToggleActivity` launched via `PendingIntent` (required
+  on Android 14+; `startActivityAndCollapse(Intent)` throws
+  `UnsupportedOperationException`).
+- **State persistence:** file-based marker (`files/vpn_active`). File exists = active,
+  absent = inactive. Written/deleted by `VpnState.setActive()` and the toggle activity.
+- **Long-press opens app:** `QS_TILE_PREFERENCES` intent filter on `MainActivity`.
+- **No `ACTIVE_TILE` meta-data** — tile state is managed manually via
+  `Tile.STATE_ACTIVE` / `Tile.STATE_INACTIVE`.
 
 ## Workflow & git
 
@@ -83,5 +111,5 @@ notes (e.g. the DNS/VPN internals) live in code and feature PRs, not here.
 - **Lint:** run `./gradlew lint` as a pre-PR check and fix (or consciously suppress)
   warnings.
 - **Unit tests (JUnit):** add them for pure logic as the engine grows — e.g. DNS/IP
-  packet parsing, blocklist/domain matching (Trie/HashSet), and cache behavior. UI is
+  packet parsing, blocklist/domain matching (DiskMatcher), and cache behavior. UI is
   verified manually.
