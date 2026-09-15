@@ -9,8 +9,11 @@ notes (e.g. the DNS/VPN internals) live in code and feature PRs, not here.
 - **Layout:** organized **package-by-feature** under
   `app/src/main/java/com/adblocker/`. Layers: `data/`, `ui/`, `vpn/`, `filter/`,
   `receiver/`.
-- **Persistence:** `SharedPreferences` (via `VpnState`) for VPN state, file-based
-  marker (`vpn_active`) for cross-process tile state. `DataStore` not yet used.
+- **Persistence:** Jetpack **Preferences DataStore** (via `AppSettings`) for
+  user settings (bypass apps, default/custom blocklists, custom rules, auto-start).
+  In-memory `MutableStateFlow` + file-based markers (`files/vpn_active`,
+  `files/vpn_connecting`) for cross-process VPN state and QS tile sync.
+  `SharedPreferences` is only used for one-time UI flags (e.g. tile addition prompt).
 - **DI:** none currently; manual wiring via `AdBlockerApp`.
 
 ## Stack & tooling
@@ -70,6 +73,25 @@ notes (e.g. the DNS/VPN internals) live in code and feature PRs, not here.
   - VPN OFF: `ads.google.com` → real IP (e.g. `142.251.x.x`).
 - **Process check:** `ps -A | grep adblocker` — should show one process.
 - **Crash check:** `logcat -d -s AndroidRuntime:E | tail -20`.
+
+## DNS & tunnel architecture invariants
+
+- **DNS-only split tunnel:** Routes only `10.10.10.2/32` to the TUN. Non-DNS IP packets
+  do not pass through the tunnel.
+- **IPv6 / AAAA queries:** The tunnel does not route IPv6. All AAAA (type 28) queries
+  must be answered with an empty `NOERROR` (ANCOUNT = 0) so apps immediately fall back
+  to IPv4. Forwarding AAAA or returning real IPv6 addresses breaks connectivity.
+- **DNS transaction ID rewrite:** When serving cached DNS answers from the in-memory LRU
+  cache, the 16-bit transaction ID must be rewritten to match the incoming query ID;
+  otherwise clients drop the response with `DNS_PROBE_FINISHED_BAD_CONFIG`.
+- **Tunnel reload vs. dynamic reload:**
+  - Bypass app changes require a full tunnel recreation (`ACTION_RELOAD`) because
+    `VpnService.Builder.addDisallowedApplication()` cannot be altered on an active TUN.
+  - Blocklist updates use `ACTION_RELOAD_BLOCKLISTS` to re-index domains in-place
+    without tearing down the tunnel.
+- **Heap conservation:** Devices like OnePlus enforce a strict 256 MB JVM heap limit.
+  Never retain large sets of domain strings in heap memory. Always parse through
+  `DiskMatcher` to memory-map domains into page cache.
 
 ## Quick Settings tile
 
